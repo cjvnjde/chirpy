@@ -11,5 +11,7 @@ func main() {
 		Addr:    ":8080",
 	}
 
+	serveMux.Handle("/", http.FileServer(http.Dir(".")))
+
 	server.ListenAndServe()
 }
