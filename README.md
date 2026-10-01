@@ -19,27 +19,37 @@ docker run -d \
 ```bash
 docker start pg
 ```
+
 ```bash
 docker stop pg
 ```
+
 Create database
+
 ```bash
 docker exec pg psql -U postgres -d postgres -c 'CREATE DATABASE chirpy;'
 ```
+
 Open sql inside docker
+
 ```bash
 docker exec -it pg psql -U postgres -d chirpy
 ```
+
 or usinng psql
+
 ```bash
 psql "postgres://postgres:postgres@localhost:5432/chirpy?sslmode=disable"
 ```
 
 run migration up
+
 ```bash
 goose -dir sql/schema postgres "postgres://postgres:postgres@localhost:5432/chirpy?sslmode=disable" up
 ```
+
 or down
+
 ```bash
 goose -dir sql/schema postgres "postgres://postgres:postgres@localhost:5432/chirpy?sslmode=disable" down
 ```

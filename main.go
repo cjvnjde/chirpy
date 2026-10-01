@@ -1,13 +1,19 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync/atomic"
+
+	"github.com/cjvnjde/chirpy/internal/database"
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 )
 
 type httpError struct {
@@ -61,6 +67,16 @@ func replaceWords(body string) string {
 }
 
 func main() {
+	godotenv.Load()
+	dbUrl := os.Getenv("DB_URL")
+
+	db, err := sql.Open("postgres", dbUrl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	dbQueries := database.New(db)
+	fmt.Println(dbQueries)
+
 	serveMux := http.NewServeMux()
 	server := http.Server{
 		Handler: serveMux,
