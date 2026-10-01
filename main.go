@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync/atomic"
 )
 
@@ -33,8 +34,32 @@ func somethingWentWrong(w http.ResponseWriter, err error) {
 		return
 	}
 	w.Write(dat)
-	return
 }
+
+func replaceWords(body string) string {
+	bannedWords := []string{"kerfuffle", "sharbert", "fornax"}
+
+	words := strings.Split(body, " ")
+	newStr := make([]string, 0, len(words))
+
+	for _, word := range words {
+		loverWord := strings.ToLower(word)
+		shouldSkip := false
+		for _, banned := range bannedWords {
+			if loverWord == banned {
+				shouldSkip = true
+			}
+		}
+		if !shouldSkip {
+			newStr = append(newStr, word)
+		} else {
+			newStr = append(newStr, "****")
+		}
+	}
+
+	return strings.Join(newStr, " ")
+}
+
 func main() {
 	serveMux := http.NewServeMux()
 	server := http.Server{
@@ -84,10 +109,11 @@ func main() {
 		}
 
 		type valid struct {
-			Valid bool `json:"valid"`
+			CleanedBody string `json:"cleaned_body"`
 		}
+
 		v := valid{
-			Valid: true,
+			CleanedBody: replaceWords(params.Body),
 		}
 		d, err := json.Marshal(v)
 		if err != nil {
