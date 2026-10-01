@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync/atomic"
@@ -26,8 +27,8 @@ func main() {
 		rw.Write([]byte("OK"))
 	})
 
-	serveMux.HandleFunc("GET /api/metrics", apiCfg.metricsHandler)
-	serveMux.HandleFunc("POST /api/reset", apiCfg.resetHandler)
+	serveMux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
+	serveMux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 
 	server.ListenAndServe()
 }
@@ -44,11 +45,16 @@ func (cfg *apiConfig) middlewareMetricInc(next http.Handler) http.Handler {
 }
 
 func (cfg *apiConfig) metricsHandler(rw http.ResponseWriter, req *http.Request) {
-	rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	rw.Header().Set("Content-Type", "text/html")
 	rw.WriteHeader(200)
 	hits := cfg.fileserverHits.Load()
-	str := "Hits: " + strconv.Itoa(int(hits))
-	rw.Write([]byte(str))
+	content := fmt.Sprintf(`<html>
+  <body>
+    <h1>Welcome, Chirpy Admin</h1>
+    <p>Chirpy has been visited %d times!</p>
+  </body>
+</html>`, hits)
+	rw.Write([]byte(content))
 }
 
 func (cfg *apiConfig) resetHandler(rw http.ResponseWriter, req *http.Request) {
