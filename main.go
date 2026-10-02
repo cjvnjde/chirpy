@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -22,7 +21,6 @@ func main() {
 		log.Fatal(err)
 	}
 	dbQueries := database.New(db)
-	fmt.Println(dbQueries)
 
 	serveMux := http.NewServeMux()
 	server := http.Server{
@@ -32,6 +30,7 @@ func main() {
 
 	apiCfg := apiConfig{
 		fileserverHits: atomic.Int32{},
+		db:             dbQueries,
 	}
 	apiCfg.fileserverHits.Store(0)
 
@@ -41,6 +40,7 @@ func main() {
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
 	serveMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
+	serveMux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 
 	server.ListenAndServe()
 }
