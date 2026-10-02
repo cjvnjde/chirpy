@@ -179,3 +179,25 @@ func (c *apiConfig) allChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(d)
 }
+
+func (c *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
+	userId, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+	chirp, err := c.db.GetChirpByID(r.Context(), userId)
+	if err != nil {
+		w.WriteHeader(404)
+		w.Write([]byte{})
+		return
+	}
+	d, err := json.Marshal(ChirpItemResponse(chirp))
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(d)
+}
