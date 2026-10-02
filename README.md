@@ -36,7 +36,7 @@ Open sql inside docker
 docker exec -it pg psql -U postgres -d chirpy
 ```
 
-or usinng psql
+or using `psql`
 
 ```bash
 psql "postgres://postgres:postgres@localhost:5432/chirpy?sslmode=disable"
