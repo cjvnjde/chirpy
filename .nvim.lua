@@ -1,3 +1,6 @@
+local project_dir = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":h")
+vim.g.db_ui_save_location = project_dir .. "/.dbui"
+
 vim.g.db = "postgres://postgres:postgres@localhost:5432/chirpy?sslmode=disable"
 
 vim.api.nvim_create_autocmd("VimEnter", {
