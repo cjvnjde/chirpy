@@ -57,47 +57,6 @@ func (c *apiConfig) resetHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(string(hits)))
 }
 
-func (cfg *apiConfig) validateChirpHandler(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
-		Body string `json:"body"`
-	}
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
-	w.Header().Set("Content-Type", "application/json")
-
-	if err != nil {
-		somethingWentWrong(w, err)
-		return
-	}
-
-	if len(params.Body) > 140 {
-		w.WriteHeader(400)
-		dat, err := NewJSONError("Chirp is too long")
-		if err != nil {
-			w.Write([]byte("Erorr"))
-			return
-		}
-		w.Write(dat)
-		return
-	}
-
-	type valid struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
-
-	v := valid{
-		CleanedBody: cencorWords(params.Body),
-	}
-	d, err := json.Marshal(v)
-	if err != nil {
-		somethingWentWrong(w, err)
-		return
-	}
-
-	w.Write(d)
-}
-
 func (cfg *apiConfig) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
@@ -149,5 +108,65 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Write(d)
+}
+
+func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
+	type chirpBody struct {
+		Body   string    `json:"body"`
+		UserID uuid.UUID `json:"user_id"`
+	}
+	params := chirpBody{}
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&params)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if len(params.Body) > 140 {
+		w.WriteHeader(400)
+		dat, err := NewJSONError("Chirp is too long")
+		if err != nil {
+			w.Write([]byte("Erorr"))
+			return
+		}
+		w.Write(dat)
+		return
+	}
+
+	chirp, err := c.db.CreateChirp(r.Context(), database.CreateChirpParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Body:      cencorWords(params.Body),
+		UserID:    params.UserID,
+	})
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+	type chirpData struct {
+		ID        uuid.UUID `json:"id"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Body      string    `json:"body"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+	d, err := json.Marshal(chirpData{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	})
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+	w.WriteHeader(201)
 	w.Write(d)
 }

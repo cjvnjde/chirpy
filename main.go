@@ -39,7 +39,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/healthz", apiCfg.healthzHandler)
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
-	serveMux.HandleFunc("POST /api/validate_chirp", apiCfg.validateChirpHandler)
+	serveMux.HandleFunc("POST /api/chirps", apiCfg.chirpHandler)
 	serveMux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 
 	server.ListenAndServe()
