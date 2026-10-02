@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cjvnjde/chirpy/internal/auth"
 	"github.com/cjvnjde/chirpy/internal/database"
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
@@ -65,7 +67,8 @@ func (cfg *apiConfig) healthzHandler(w http.ResponseWriter, r *http.Request) {
 
 func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 	type userBody struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	body := userBody{}
 	decoder := json.NewDecoder(r.Body)
@@ -76,11 +79,20 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pswHash, err := auth.HashPassword(body.Password)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
 	user, err := c.db.CreateUser(r.Context(), database.CreateUserParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Email:     body.Email,
+		HashedPassword: sql.NullString{
+			String: pswHash,
+			Valid:  pswHash != "",
+		},
 	})
 	if err != nil {
 		somethingWentWrong(w, err)
@@ -197,6 +209,49 @@ func (c *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
 		somethingWentWrong(w, err)
 		return
 	}
+	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(d)
+}
+
+func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
+	type body struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	params := body{}
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&params)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	user, err := c.db.GetUserByEmail(r.Context(), params.Email)
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+	isOk, err := auth.CheckPasswordHash(params.Password, user.HashedPassword.String)
+
+	if !isOk {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+
+	d, err := json.Marshal(UserItemResponse{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(d)

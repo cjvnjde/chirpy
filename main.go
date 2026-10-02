@@ -43,6 +43,7 @@ func main() {
 	serveMux.HandleFunc("GET /api/chirps", apiCfg.allChirpsHandler)
 	serveMux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 	serveMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getChirpHandler)
+	serveMux.HandleFunc("POST /api/login", apiCfg.loginHandler)
 
 	server.ListenAndServe()
 }
