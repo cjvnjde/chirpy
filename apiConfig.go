@@ -87,17 +87,10 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type userCreated struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
-	}
-
 	w.WriteHeader(201)
 	w.Header().Set("Content-Type", "application/json")
 
-	d, err := json.Marshal(userCreated{
+	d, err := json.Marshal(UserItemResponse{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
@@ -149,14 +142,7 @@ func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 		somethingWentWrong(w, err)
 		return
 	}
-	type chirpData struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Body      string    `json:"body"`
-		UserID    uuid.UUID `json:"user_id"`
-	}
-	d, err := json.Marshal(chirpData{
+	d, err := json.Marshal(ChirpItemResponse{
 		ID:        chirp.ID,
 		CreatedAt: chirp.CreatedAt,
 		UpdatedAt: chirp.UpdatedAt,
@@ -168,5 +154,28 @@ func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(201)
+	w.Write(d)
+}
+
+func (c *apiConfig) allChirpsHandler(w http.ResponseWriter, r *http.Request) {
+	data, err := c.db.GetAllChirps(r.Context())
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	allChirps := make([]ChirpItemResponse, len(data))
+
+	for i, chirp := range data {
+		allChirps[i] = ChirpItemResponse(chirp)
+	}
+
+	d, err := json.Marshal(allChirps)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(d)
 }
