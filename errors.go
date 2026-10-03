@@ -31,3 +31,13 @@ func somethingWentWrong(w http.ResponseWriter, err error) {
 	}
 	w.Write(dat)
 }
+
+func unauthorized(w http.ResponseWriter, err error) {
+	w.WriteHeader(401)
+	dat, err := NewJSONError("Unauthorized")
+	if err != nil {
+		w.Write([]byte("Unauthorized"))
+		return
+	}
+	w.Write(dat)
+}

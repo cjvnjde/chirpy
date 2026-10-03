@@ -19,6 +19,7 @@ import (
 type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
+	jwtSecret      string
 }
 
 func (cfg *apiConfig) middlewareMetricInc(next http.Handler) http.Handler {
@@ -117,14 +118,24 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
+	bearerToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		unauthorized(w, err)
+		return
+	}
+	userUuid, err := auth.ValidateJWT(bearerToken, c.jwtSecret)
+	if err != nil {
+		unauthorized(w, err)
+		return
+	}
+
 	type chirpBody struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 	params := chirpBody{}
 
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		somethingWentWrong(w, err)
 		return
@@ -148,7 +159,7 @@ func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Body:      cencorWords(params.Body),
-		UserID:    params.UserID,
+		UserID:    userUuid,
 	})
 	if err != nil {
 		somethingWentWrong(w, err)
@@ -216,8 +227,9 @@ func (c *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	type body struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds string `json:"expires_in_seconds"`
 	}
 	params := body{}
 	decoder := json.NewDecoder(r.Body)
@@ -241,11 +253,26 @@ func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	expiresIn := time.Duration(1 * time.Hour)
+	if params.ExpiresInSeconds != "" {
+		parsedExpiresIn, err := time.ParseDuration(params.ExpiresInSeconds)
+		if err == nil {
+			expiresIn = parsedExpiresIn
+		}
+
+	}
+
+	jwt, err := auth.MakeJWT(user.ID, c.jwtSecret, expiresIn)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
 	d, err := json.Marshal(UserItemResponse{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email:     user.Email,
+		Token:     jwt,
 	})
 	if err != nil {
 		somethingWentWrong(w, err)
