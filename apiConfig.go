@@ -117,6 +117,66 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(d)
 }
 
+func (c *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	bearerToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		unauthorized(w, err)
+		return
+	}
+	userUuid, err := auth.ValidateJWT(bearerToken, c.jwtSecret)
+	if err != nil {
+		unauthorized(w, err)
+		return
+	}
+
+	type userBody struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	body := userBody{}
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	err = decoder.Decode(&body)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	pswHash, err := auth.HashPassword(body.Password)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+	user, err := c.db.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID:        userUuid,
+		UpdatedAt: time.Now().UTC(),
+		Email:     body.Email,
+		HashedPassword: sql.NullString{
+			String: pswHash,
+			Valid:  pswHash != "",
+		},
+	})
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	d, err := json.Marshal(UserItemResponse{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	w.Write(d)
+}
+
 func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 	bearerToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
