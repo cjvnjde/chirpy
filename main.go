@@ -39,13 +39,19 @@ func main() {
 	serveMux.Handle("/app/", apiCfg.middlewareMetricInc(http.StripPrefix("/app", http.FileServer(http.Dir(".")))))
 
 	serveMux.HandleFunc("GET /api/healthz", apiCfg.healthzHandler)
+	// admin
 	serveMux.HandleFunc("GET /admin/metrics", apiCfg.metricsHandler)
 	serveMux.HandleFunc("POST /admin/reset", apiCfg.resetHandler)
+	// chirps
 	serveMux.HandleFunc("POST /api/chirps", apiCfg.chirpHandler)
 	serveMux.HandleFunc("GET /api/chirps", apiCfg.allChirpsHandler)
-	serveMux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
 	serveMux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.getChirpHandler)
+	// users
+	serveMux.HandleFunc("POST /api/users", apiCfg.createUserHandler)
+	// auth
 	serveMux.HandleFunc("POST /api/login", apiCfg.loginHandler)
+	serveMux.HandleFunc("POST /api/refresh", apiCfg.refreshHandler)
+	serveMux.HandleFunc("POST /api/revoke", apiCfg.revokeHandler)
 
 	server.ListenAndServe()
 }

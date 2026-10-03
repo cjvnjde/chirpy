@@ -87,8 +87,8 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := c.db.CreateUser(r.Context(), database.CreateUserParams{
 		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 		Email:     body.Email,
 		HashedPassword: sql.NullString{
 			String: pswHash,
@@ -156,9 +156,9 @@ func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 
 	chirp, err := c.db.CreateChirp(r.Context(), database.CreateChirpParams{
 		ID:        uuid.New(),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Body:      cencorWords(params.Body),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		Body:      censorWords(params.Body),
 		UserID:    userUuid,
 	})
 	if err != nil {
@@ -227,9 +227,8 @@ func (c *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
 
 func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	type body struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds string `json:"expires_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	params := body{}
 	decoder := json.NewDecoder(r.Body)
@@ -254,12 +253,19 @@ func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	expiresIn := time.Duration(1 * time.Hour)
-	if params.ExpiresInSeconds != "" {
-		parsedExpiresIn, err := time.ParseDuration(params.ExpiresInSeconds)
-		if err == nil {
-			expiresIn = parsedExpiresIn
-		}
 
+	refreshToken := auth.MakeRefreshToken()
+
+	rt, err := c.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+		UserID:    user.ID,
+		ExpiresAt: time.Now().UTC().Add(60 * 24 * time.Hour),
+	})
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
 	}
 
 	jwt, err := auth.MakeJWT(user.ID, c.jwtSecret, expiresIn)
@@ -268,11 +274,12 @@ func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d, err := json.Marshal(UserItemResponse{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     jwt,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        jwt,
+		RefreshToken: rt.Token,
 	})
 	if err != nil {
 		somethingWentWrong(w, err)
@@ -282,4 +289,94 @@ func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(d)
+}
+
+func (c *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
+	rt, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+
+	refreshToken, err := c.db.GetRefreshToken(r.Context(), rt)
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+	if refreshToken.RevokedAt.Valid {
+		if !refreshToken.RevokedAt.Time.After(time.Now().UTC()) {
+			w.WriteHeader(401)
+			w.Write([]byte{})
+			return
+		}
+	}
+
+	if !refreshToken.ExpiresAt.After(time.Now().UTC()) {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+
+	user, err := c.db.GetUserFromRefreshToken(r.Context(), refreshToken.Token)
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+
+	newToken, err := auth.MakeJWT(user.ID, c.jwtSecret, time.Duration(1*time.Hour))
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	type token struct {
+		Token string `json:"token"`
+	}
+
+	d, err := json.Marshal(token{
+		Token: newToken,
+	})
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	w.WriteHeader(200)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(d)
+}
+
+func (c *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
+	rt, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+
+	refreshToken, err := c.db.GetRefreshToken(r.Context(), rt)
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+
+	_, err = c.db.RevokeRefreshToken(r.Context(), database.RevokeRefreshTokenParams{
+		Token: refreshToken.Token,
+		RevokedAt: sql.NullTime{
+			Time:  time.Now().UTC(),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		w.WriteHeader(401)
+		w.Write([]byte{})
+		return
+	}
+
+	w.WriteHeader(204)
+	w.Write([]byte{})
 }

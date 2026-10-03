@@ -2,7 +2,7 @@ package main
 
 import "strings"
 
-func cencorWords(body string) string {
+func censorWords(body string) string {
 	bannedWords := []string{"kerfuffle", "sharbert", "fornax"}
 
 	words := strings.Split(body, " ")
