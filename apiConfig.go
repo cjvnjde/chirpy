@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -238,8 +239,41 @@ func (c *apiConfig) chirpHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(d)
 }
 
+type ByUpdatedAt []database.Chirp
+
+func (a ByUpdatedAt) Len() int {
+	return len(a)
+}
+
+func (a ByUpdatedAt) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+func (a ByUpdatedAt) Less(i, j int) bool {
+	return a[i].UpdatedAt.After(a[j].UpdatedAt)
+}
+
 func (c *apiConfig) allChirpsHandler(w http.ResponseWriter, r *http.Request) {
-	data, err := c.db.GetAllChirps(r.Context())
+	authorID := r.URL.Query().Get("author_id")
+	sortOrder := r.URL.Query().Get("sort")
+	var data []database.Chirp
+	var err error
+	var autherUUID uuid.UUID
+
+	if authorID != "" {
+		autherUUID, err = uuid.Parse(authorID)
+		if err == nil {
+			data, err = c.db.GetUserChirps(r.Context(), autherUUID)
+		}
+	} else {
+		data, err = c.db.GetAllChirps(r.Context())
+	}
+
+	if sortOrder == "desc" {
+		fmt.Println(sortOrder)
+		sort.Sort(ByUpdatedAt(data))
+	}
+
 	if err != nil {
 		somethingWentWrong(w, err)
 		return
