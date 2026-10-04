@@ -42,3 +42,12 @@ FROM
   INNER JOIN refresh_tokens ON users.id = refresh_tokens.user_id
 WHERE
   refresh_tokens.token = $1;
+
+-- name: UpgradeUserChirpToRed :one
+UPDATE users
+SET
+  is_chirpy_red = TRUE
+WHERE
+  id = $1
+RETURNING
+  *;

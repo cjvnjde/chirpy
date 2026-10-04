@@ -104,10 +104,11 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	d, err := json.Marshal(UserItemResponse{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 	if err != nil {
 		somethingWentWrong(w, err)
@@ -157,10 +158,11 @@ func (c *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	d, err := json.Marshal(UserItemResponse{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+		ID:          user.ID,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   user.UpdatedAt,
+		Email:       user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 	if err != nil {
 		somethingWentWrong(w, err)
@@ -368,6 +370,7 @@ func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 		Token:        jwt,
 		RefreshToken: rt.Token,
+		IsChirpyRed:  user.IsChirpyRed,
 	})
 	if err != nil {
 		somethingWentWrong(w, err)
@@ -480,4 +483,40 @@ func (c *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(204)
 	w.Write([]byte{})
+}
+
+func (c *apiConfig) webhooksHandler(w http.ResponseWriter, r *http.Request) {
+	type body struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserId uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	params := body{}
+	defer r.Body.Close()
+	err := decoder.Decode(&params)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	switch params.Event {
+	case "user.upgraded":
+		{
+			_, err := c.db.UpgradeUserChirpToRed(r.Context(), params.Data.UserId)
+			if err != nil {
+				w.WriteHeader(404)
+				return
+			}
+			w.WriteHeader(204)
+			w.Write([]byte{})
+			return
+		}
+	default:
+		{
+			w.WriteHeader(204)
+			return
+		}
+	}
 }

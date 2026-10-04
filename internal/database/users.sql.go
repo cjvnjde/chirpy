@@ -25,7 +25,7 @@ INSERT INTO
 VALUES
   ($1, $2, $3, $4, $5)
 RETURNING
-  id, created_at, updated_at, email, hashed_password
+  id, created_at, updated_at, email, hashed_password, is_chirpy_red
 `
 
 type CreateUserParams struct {
@@ -51,6 +51,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
@@ -66,7 +67,7 @@ func (q *Queries) DeleteUsers(ctx context.Context) error {
 
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT
-  id, created_at, updated_at, email, hashed_password
+  id, created_at, updated_at, email, hashed_password, is_chirpy_red
 FROM
   users
 WHERE
@@ -82,13 +83,14 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
 
 const getUserFromRefreshToken = `-- name: GetUserFromRefreshToken :one
 SELECT
-  users.id, users.created_at, users.updated_at, users.email, users.hashed_password
+  users.id, users.created_at, users.updated_at, users.email, users.hashed_password, users.is_chirpy_red
 FROM
   users
   INNER JOIN refresh_tokens ON users.id = refresh_tokens.user_id
@@ -105,6 +107,7 @@ func (q *Queries) GetUserFromRefreshToken(ctx context.Context, token string) (Us
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
@@ -118,7 +121,7 @@ SET
 WHERE
   id = $1
 RETURNING
-  id, created_at, updated_at, email, hashed_password
+  id, created_at, updated_at, email, hashed_password, is_chirpy_red
 `
 
 type UpdateUserParams struct {
@@ -142,6 +145,31 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.Email,
 		&i.HashedPassword,
+		&i.IsChirpyRed,
+	)
+	return i, err
+}
+
+const upgradeUserChirpToRed = `-- name: UpgradeUserChirpToRed :one
+UPDATE users
+SET
+  is_chirpy_red = TRUE
+WHERE
+  id = $1
+RETURNING
+  id, created_at, updated_at, email, hashed_password, is_chirpy_red
+`
+
+func (q *Queries) UpgradeUserChirpToRed(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, upgradeUserChirpToRed, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.HashedPassword,
+		&i.IsChirpyRed,
 	)
 	return i, err
 }
