@@ -20,6 +20,7 @@ type apiConfig struct {
 	fileserverHits atomic.Int32
 	db             *database.Queries
 	jwtSecret      string
+	polkaKey       string
 }
 
 func (cfg *apiConfig) middlewareMetricInc(next http.Handler) http.Handler {
@@ -486,6 +487,16 @@ func (c *apiConfig) revokeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *apiConfig) webhooksHandler(w http.ResponseWriter, r *http.Request) {
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		unauthorized(w, err)
+		return
+	}
+	if apiKey != c.polkaKey {
+		unauthorized(w, err)
+		return
+	}
+
 	type body struct {
 		Event string `json:"event"`
 		Data  struct {
@@ -495,7 +506,7 @@ func (c *apiConfig) webhooksHandler(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	params := body{}
 	defer r.Body.Close()
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		somethingWentWrong(w, err)
 		return

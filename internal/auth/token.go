@@ -8,14 +8,32 @@ import (
 	"strings"
 )
 
-func GetBearerToken(headers http.Header) (string, error) {
+type authorizationType int
+
+const (
+	Bearer authorizationType = iota
+	Api
+)
+
+func getAuthorization(authType authorizationType, headers http.Header) (string, error) {
 	authToken := headers.Get("Authorization")
 	if authToken == "" {
 		return "", errors.New("authorization token doesn't exist")
 	}
-	tokenString := strings.Replace(authToken, "Bearer ", "", 1)
+	prefix := ""
+	switch authType {
+	case Bearer:
+		prefix = "Bearer "
+	case Api:
+		prefix = "ApiKey "
+	}
 
+	tokenString := strings.Replace(authToken, prefix, "", 1)
 	return tokenString, nil
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	return getAuthorization(Bearer, headers)
 }
 
 func MakeRefreshToken() string {
@@ -23,4 +41,8 @@ func MakeRefreshToken() string {
 	rand.Read(someData)
 
 	return hex.EncodeToString(someData)
+}
+
+func GetAPIKey(headers http.Header) (string, error) {
+	return getAuthorization(Api, headers)
 }
