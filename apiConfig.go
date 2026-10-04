@@ -118,12 +118,7 @@ func (c *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
-	bearerToken, err := auth.GetBearerToken(r.Header)
-	if err != nil {
-		unauthorized(w, err)
-		return
-	}
-	userUuid, err := auth.ValidateJWT(bearerToken, c.jwtSecret)
+	userUUID, err := c.checkAuth(w, r)
 	if err != nil {
 		unauthorized(w, err)
 		return
@@ -148,7 +143,7 @@ func (c *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user, err := c.db.UpdateUser(r.Context(), database.UpdateUserParams{
-		ID:        userUuid,
+		ID:        userUUID,
 		UpdatedAt: time.Now().UTC(),
 		Email:     body.Email,
 		HashedPassword: sql.NullString{
@@ -263,13 +258,46 @@ func (c *apiConfig) allChirpsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(d)
 }
 
-func (c *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
-	userId, err := uuid.Parse(r.PathValue("chirpID"))
+func (c *apiConfig) deleteChirpHandler(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
 	if err != nil {
 		somethingWentWrong(w, err)
 		return
 	}
-	chirp, err := c.db.GetChirpByID(r.Context(), userId)
+	userUUID, err := c.checkAuth(w, r)
+	if err != nil {
+		unauthorized(w, err)
+		return
+	}
+	chirp, err := c.db.GetChirpByID(r.Context(), chirpID)
+	if err != nil {
+		w.WriteHeader(404)
+		w.Write([]byte{})
+		return
+	}
+	if chirp.UserID != userUUID {
+		w.WriteHeader(403)
+		w.Write([]byte{})
+		return
+	}
+
+	_, err = c.db.DeleteChirpByID(r.Context(), chirpID)
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+
+	w.WriteHeader(204)
+	w.Write([]byte{})
+}
+
+func (c *apiConfig) getChirpHandler(w http.ResponseWriter, r *http.Request) {
+	chirpID, err := uuid.Parse(r.PathValue("chirpID"))
+	if err != nil {
+		somethingWentWrong(w, err)
+		return
+	}
+	chirp, err := c.db.GetChirpByID(r.Context(), chirpID)
 	if err != nil {
 		w.WriteHeader(404)
 		w.Write([]byte{})
@@ -349,6 +377,19 @@ func (c *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(200)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(d)
+}
+
+func (c *apiConfig) checkAuth(w http.ResponseWriter, r *http.Request) (userUUID uuid.UUID, err error) {
+	bearerToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+	userUUID, err = auth.ValidateJWT(bearerToken, c.jwtSecret)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+
+	return userUUID, nil
 }
 
 func (c *apiConfig) refreshHandler(w http.ResponseWriter, r *http.Request) {
